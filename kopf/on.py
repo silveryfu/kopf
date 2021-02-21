@@ -14,9 +14,11 @@ This module is a part of the framework's public interface.
 from typing import Any, Callable, Optional, Union
 
 from kopf.reactor import handling, registries
-from kopf.structs import callbacks, dicts, filters, handlers, references
+from kopf.structs import callbacks, dicts, filters, handlers, references, reviews
 
+# TODO: Do we need to mention that it is a resource-something always? Except for activities, it is always resource-something.
 ActivityDecorator = Callable[[callbacks.ActivityFn], callbacks.ActivityFn]
+ResourceAdmissionDecorator = Callable[[callbacks.ResourceAdmissionFn], callbacks.ResourceAdmissionFn]
 ResourceIndexingDecorator = Callable[[callbacks.ResourceIndexingFn], callbacks.ResourceIndexingFn]
 ResourceWatchingDecorator = Callable[[callbacks.ResourceWatchingFn], callbacks.ResourceWatchingFn]
 ResourceChangingDecorator = Callable[[callbacks.ResourceChangingFn], callbacks.ResourceChangingFn]
@@ -130,6 +132,118 @@ def probe(  # lgtm[py/similar-function]
             activity=handlers.Activity.PROBE,
         )
         real_registry._activities.append(handler)
+        return fn
+    return decorator
+
+
+def validation(  # lgtm[py/similar-function]
+        # Resource type specification:
+        __group_or_groupversion_or_name: Optional[Union[str, references.Marker]] = None,
+        __version_or_name: Optional[Union[str, references.Marker]] = None,
+        __name: Optional[Union[str, references.Marker]] = None,
+        *,
+        group: Optional[str] = None,
+        version: Optional[str] = None,
+        kind: Optional[str] = None,
+        plural: Optional[str] = None,
+        singular: Optional[str] = None,
+        shortcut: Optional[str] = None,
+        category: Optional[str] = None,
+        # Handler's behaviour specification:
+        id: Optional[str] = None,
+        param: Optional[Any] = None,
+        persisted: Optional[bool] = None,
+        operation: Optional[reviews.Operation] = None,  # -> .webhooks.*.rules.*.operations[0]
+        side_effects: Optional[bool] = None,  # -> .webhooks.*.sideEffects
+        ignore_failures: Optional[bool] = None,  # -> .webhooks.*.failurePolicy=Ignore
+        # Resource object specification:
+        labels: Optional[filters.MetaFilter] = None,
+        annotations: Optional[filters.MetaFilter] = None,
+        when: Optional[callbacks.WhenFilterFn] = None,
+        field: Optional[dicts.FieldSpec] = None,
+        value: Optional[filters.ValueFilter] = None,
+        # Operator specification:
+        registry: Optional[registries.OperatorRegistry] = None,
+) -> ResourceAdmissionDecorator:
+    """ ``@kopf.on.resume()`` handler for the object resuming on operator (re)start. """
+    def decorator(  # lgtm[py/similar-function]
+            fn: callbacks.ResourceAdmissionFn,
+    ) -> callbacks.ResourceAdmissionFn:
+        _warn_conflicting_values(field, value)
+        _verify_filters(labels, annotations)
+        real_registry = registry if registry is not None else registries.get_default_registry()
+        real_field = dicts.parse_field(field) or None  # to not store tuple() as a no-field case.
+        real_id = registries.generate_id(fn=fn, id=id, suffix=".".join(real_field or []))
+        selector = references.Selector(
+            __group_or_groupversion_or_name, __version_or_name, __name,
+            group=group, version=version,
+            kind=kind, plural=plural, singular=singular, shortcut=shortcut, category=category,
+        )
+        handler = handlers.ResourceAdmissionHandler(
+            fn=fn, id=real_id, param=param,
+            errors=None, timeout=None, retries=None, backoff=None,  # TODO: add later
+            selector=selector, labels=labels, annotations=annotations, when=when,
+            field=real_field, value=value,
+            reason=handlers.Admission.VALIDATING, operation=operation,
+            persisted=persisted, side_effects=side_effects, ignore_failures=ignore_failures,
+        )
+        real_registry._resource_admission.append(handler)
+        return fn
+    return decorator
+
+
+def mutation(  # lgtm[py/similar-function]
+        # Resource type specification:
+        __group_or_groupversion_or_name: Optional[Union[str, references.Marker]] = None,
+        __version_or_name: Optional[Union[str, references.Marker]] = None,
+        __name: Optional[Union[str, references.Marker]] = None,
+        *,
+        group: Optional[str] = None,
+        version: Optional[str] = None,
+        kind: Optional[str] = None,
+        plural: Optional[str] = None,
+        singular: Optional[str] = None,
+        shortcut: Optional[str] = None,
+        category: Optional[str] = None,
+        # Handler's behaviour specification:
+        id: Optional[str] = None,
+        param: Optional[Any] = None,
+        persisted: Optional[bool] = None,
+        operation: Optional[reviews.Operation] = None,  # -> .webhooks.*.rules.*.operations[0]
+        side_effects: Optional[bool] = None,  # -> .webhooks.*.sideEffects
+        ignore_failures: Optional[bool] = None,  # -> .webhooks.*.failurePolicy=Ignore
+        # Resource object specification:
+        labels: Optional[filters.MetaFilter] = None,
+        annotations: Optional[filters.MetaFilter] = None,
+        when: Optional[callbacks.WhenFilterFn] = None,
+        field: Optional[dicts.FieldSpec] = None,
+        value: Optional[filters.ValueFilter] = None,
+        # Operator specification:
+        registry: Optional[registries.OperatorRegistry] = None,
+) -> ResourceAdmissionDecorator:
+    """ ``@kopf.on.resume()`` handler for the object resuming on operator (re)start. """
+    def decorator(  # lgtm[py/similar-function]
+            fn: callbacks.ResourceAdmissionFn,
+    ) -> callbacks.ResourceAdmissionFn:
+        _warn_conflicting_values(field, value)
+        _verify_filters(labels, annotations)
+        real_registry = registry if registry is not None else registries.get_default_registry()
+        real_field = dicts.parse_field(field) or None  # to not store tuple() as a no-field case.
+        real_id = registries.generate_id(fn=fn, id=id, suffix=".".join(real_field or []))
+        selector = references.Selector(
+            __group_or_groupversion_or_name, __version_or_name, __name,
+            group=group, version=version,
+            kind=kind, plural=plural, singular=singular, shortcut=shortcut, category=category,
+        )
+        handler = handlers.ResourceAdmissionHandler(
+            fn=fn, id=real_id, param=param,
+            errors=None, timeout=None, retries=None, backoff=None,  # TODO: add later
+            selector=selector, labels=labels, annotations=annotations, when=when,
+            field=real_field, value=value,
+            reason=handlers.Admission.MUTATING, operation=operation,
+            persisted=persisted, side_effects=side_effects, ignore_failures=ignore_failures,
+        )
+        real_registry._resource_admission.append(handler)
         return fn
     return decorator
 

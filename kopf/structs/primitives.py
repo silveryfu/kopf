@@ -7,7 +7,8 @@ import concurrent.futures
 import enum
 import threading
 import time
-from typing import Any, Callable, Collection, Iterable, Iterator, Optional, Set, Union
+from typing import Any, AsyncIterator, Callable, Collection, Generic, \
+                   Iterable, Iterator, Optional, Set, TypeVar, Union
 
 from kopf.utilities import aiotasks
 
@@ -80,6 +81,39 @@ def check_flag(
         return flag.is_set()
     else:
         raise TypeError(f"Unsupported type of a flag: {flag!r}")
+
+
+_T = TypeVar('_T')
+
+
+class Container(Generic[_T]):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.changed = asyncio.Condition()
+        self._values: Collection[_T] = []  # 0..1 item
+
+    async def set(self, value: _T) -> None:
+        async with self.changed:
+            self._values = [value]
+            self.changed.notify_all()
+
+    async def wait(self) -> _T:
+        async with self.changed:
+            await self.changed.wait_for(lambda: self._values)
+        return next(iter(self._values))
+
+    async def reset(self) -> None:
+        async with self.changed:
+            self._values = []
+            self.changed.notify_all()
+
+    async def as_changed(self) -> AsyncIterator[_T]:
+        async with self.changed:
+            while True:
+                if self._values:
+                    yield next(iter(self._values))
+                await self.changed.wait()
 
 
 # Mind the value: it can be bool-evaluatable but non-bool -- always convert it.

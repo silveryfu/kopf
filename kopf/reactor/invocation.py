@@ -73,6 +73,13 @@ def build_kwargs(
             labels=cause.body.metadata.labels,
             annotations=cause.body.metadata.annotations,
         )
+    if isinstance(cause, causation.ResourceAdmissionCause):
+        new_kwargs.update(
+            dryrun=cause.dryrun,
+            headers=cause.headers,
+            sslpeer=cause.sslpeer,
+            userinfo=cause.userinfo,
+        )
     if isinstance(cause, causation.ResourceWatchingCause):
         new_kwargs.update(
             event=cause.raw,

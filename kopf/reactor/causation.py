@@ -21,11 +21,11 @@ could execute on the yet-existing object (and its children, if created).
 """
 import dataclasses
 import logging
-from typing import Any, Optional, TypeVar, Union
+from typing import Any, Mapping, Optional, TypeVar, Union
 
 from kopf.storage import finalizers
-from kopf.structs import bodies, configuration, diffs, ephemera, \
-                         handlers, patches, primitives, references
+from kopf.structs import bodies, configuration, diffs, ephemera, handlers, \
+                         patches, primitives, references, reviews
 
 
 @dataclasses.dataclass
@@ -46,6 +46,14 @@ class ResourceCause(BaseCause):
     resource: references.Resource
     patch: patches.Patch
     body: bodies.Body
+
+
+@dataclasses.dataclass
+class ResourceAdmissionCause(ResourceCause):
+    dryrun: bool
+    headers: Mapping[str, str]
+    sslpeer: Mapping[str, Any]
+    userinfo: reviews.UserInfo
 
 
 @dataclasses.dataclass
