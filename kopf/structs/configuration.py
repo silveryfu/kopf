@@ -203,7 +203,7 @@ class BatchingSettings:
     How soon an idle worker is exited and garbage-collected if no events arrive.
     """
 
-    batch_window: float = 0.1
+    batch_window: float = 0.001
     """
     How fast/slow does a worker deplete the queue when an event is received.
     All events arriving within this window will be ignored except the last one.
